@@ -160,6 +160,29 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			}
 		}
 
+		// [自定义补丁] Message sanitization: trim trailing whitespace and remove prefill for thinking models
+		if info.ChannelSetting.SanitizeMessages {
+			if req, ok := convertedRequest.(*dto.GeneralOpenAIRequest); ok && len(req.Messages) > 0 {
+				// 1. TrimRight: 去掉所有 assistant 消息末尾的空白字符
+				for i := range req.Messages {
+					if req.Messages[i].Role == "assistant" && req.Messages[i].IsStringContent() {
+						content := req.Messages[i].StringContent()
+						trimmed := strings.TrimRight(content, " \t\n\r")
+						if trimmed != content {
+							req.Messages[i].SetStringContent(trimmed)
+							logger.LogInfo(c, fmt.Sprintf("sanitize: trimmed trailing whitespace from assistant message[%d]", i))
+						}
+					}
+				}
+				// 2. Remove prefill: thinking 模型 + 末尾是 assistant → 移除
+				lastIdx := len(req.Messages) - 1
+				if req.Messages[lastIdx].Role == "assistant" && strings.Contains(strings.ToLower(info.OriginModelName), "thinking") {
+					req.Messages = req.Messages[:lastIdx]
+					logger.LogWarn(c, fmt.Sprintf("sanitize: removed assistant prefill for thinking model %s (origin: %s)", info.UpstreamModelName, info.OriginModelName))
+				}
+			}
+		}
+
 		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())

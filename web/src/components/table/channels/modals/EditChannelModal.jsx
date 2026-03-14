@@ -190,6 +190,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    sanitize_messages: false,
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
@@ -525,6 +526,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
+    sanitize_messages: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -845,6 +847,8 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+          data.sanitize_messages =
+            parsedSettings.sanitize_messages || false;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -853,6 +857,7 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.sanitize_messages = false;
         }
       } else {
         data.force_format = false;
@@ -861,6 +866,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.sanitize_messages = false;
       }
 
       if (data.settings) {
@@ -966,6 +972,7 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
+        sanitize_messages: data.sanitize_messages || false,
       });
       initialModelsRef.current = (data.models || [])
         .map((model) => (model || '').trim())
@@ -1324,6 +1331,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
+      sanitize_messages: false,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -1690,6 +1698,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
+      sanitize_messages: localInputs.sanitize_messages || false,
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -1770,6 +1779,7 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    delete localInputs.sanitize_messages;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -3922,6 +3932,21 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
+                      )}
+                    />
+                    <Form.Switch
+                      field='sanitize_messages'
+                      label={t('消息清洗')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'sanitize_messages',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '转发前自动修正消息：去除 assistant 末尾空白，移除 thinking 模型的 prefill。仅在遇到相关 400 报错时开启',
                       )}
                     />
                   </Card>
