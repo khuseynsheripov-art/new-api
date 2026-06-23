@@ -76,6 +76,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
+		if info.ChannelSetting.SanitizeMessages {
+			sanitizeOpenAIMessages(request, info.OriginModelName)
+		}
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
 		if newApiErr != nil {
 			return newApiErr
@@ -154,6 +157,12 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			}
 		}
 
+		if info.ChannelSetting.SanitizeMessages {
+			if request, ok := convertedRequest.(*dto.GeneralOpenAIRequest); ok {
+				sanitizeOpenAIMessages(request, info.OriginModelName)
+			}
+		}
+
 		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())
@@ -220,4 +229,23 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+func sanitizeOpenAIMessages(request *dto.GeneralOpenAIRequest, modelName string) {
+	if request == nil || len(request.Messages) == 0 {
+		return
+	}
+
+	for i := range request.Messages {
+		message := &request.Messages[i]
+		if message.Role != "assistant" || !message.IsStringContent() {
+			continue
+		}
+		message.SetStringContent(strings.TrimRight(message.StringContent(), " \t\n\r"))
+	}
+
+	lastIdx := len(request.Messages) - 1
+	if request.Messages[lastIdx].Role == "assistant" && strings.Contains(strings.ToLower(modelName), "thinking") {
+		request.Messages = request.Messages[:lastIdx]
+	}
 }
